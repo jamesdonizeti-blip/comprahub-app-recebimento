@@ -1,50 +1,92 @@
-# Welcome to your Expo app 👋
+# App Recebimento — CompraHub v2
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Aplicativo mobile para recebimento de pedidos de compra.
+Funciona em **Android e iPhone** via Expo Go ou build nativo.
 
-## Get started
+---
 
-1. Install dependencies
+## Estrutura de arquivos
 
-   ```bash
-   npm install
-   ```
+```
+app/
+  _layout.tsx          → Layout raiz (sem header, fundo escuro)
+  index.tsx            → Splash / redirect login ou home
+  login.tsx            → Login com Supabase Auth
+  home.tsx             → Menu principal (QR Code | Digitar número)
+  scan.tsx             → Scanner de QR Code
+  pedido-manual.tsx    → Busca por número do pedido
+  recebimento/
+    [id].tsx           → Tela principal de recebimento (itens + NF)
+    encerrar.tsx       → Encerramento parcial com opção de cotação
+    sucesso.tsx        → Confirmação de conclusão
 
-2. Start the app
+lib/
+  config.ts            → URLs e chaves (Supabase + API)
+  supabase.ts          → Cliente Supabase com SecureStore
+  auth.ts              → signIn / signOut / getSession
+  api.ts               → Axios com Bearer token automático + retry 401
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+types/
+  recebimento.ts       → Tipos TypeScript do domínio
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+---
 
-## Learn more
+## Instalação
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+npm install
+npx expo start
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Escaneie o QR Code com o Expo Go (Android/iPhone).
 
-## Join the community
+---
 
-Join our community of developers creating universal apps.
+## Fluxo do app
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+1. **Login** → credenciais do portal web (Supabase Auth)
+2. **Home** → escolha entre QR Code ou digitar número
+3. **QR Code** → formato esperado: `SCOMP|PEDIDO|{pedido_uuid}`
+4. **Digitar número** → número do pedido (ex: 1042) → busca `/api/recebimentos/pedido?numero=1042`
+5. **Recebimento** → inicia via `POST /api/recebimentos` com `pedido_id` → carrega itens
+6. **Lançamento** → `PATCH /api/recebimentos/{id}` com quantidades + NF
+7. **Encerrar** → `POST /api/recebimentos/{id}/encerrar` com motivo + ação pendências
+8. **Sucesso** → volta ao início
+
+---
+
+## Correções aplicadas vs v1
+
+| Problema | Solução |
+|---|---|
+| `401 Não autenticado` ao buscar pedido | Interceptor de response renova sessão e repete req |
+| Telas de recebimento/encerrar/sucesso vazias | Implementação completa |
+| Sem validação client-side de quantidades | Validado antes de chamar a API |
+| Sem campos de Nota Fiscal | Campos NF número, série e data |
+| Sem visualização de pendências | Seção de pendências na tela de recebimento |
+| Sem tratamento de erros por status HTTP | 401 → re-login, 403 → sem permissão, 404 → não encontrado |
+
+---
+
+## Permissões necessárias no portal
+
+O usuário precisa ter as permissões:
+- `recebimento_visualizar`
+- `recebimento_registrar`
+- `recebimento_encerrar` (para encerrar)
+- `recebimento_abrir_cotacao` (para criar cotação complementar)
+
+---
+
+## Build para produção
+
+```bash
+# Android APK/AAB
+npx eas build --platform android
+
+# iOS IPA
+npx eas build --platform ios
+```
+
+Requer conta Expo (EAS Build) para builds nativos.

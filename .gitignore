@@ -40,4 +40,8 @@ app-example
 
 # generated native folders
 /ios
-/android
+/android 
+# Variáveis de ambiente
+.env
+.env.local
+*.zip
