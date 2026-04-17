@@ -18,6 +18,7 @@ import {
 export default function PedidoManualPage() {
   const [numero, setNumero] = useState("");
   const [loading, setLoading] = useState(false);
+  const [pendencia, setPendencia] = useState<{ id: string; numero: string } | null>(null);
   const inputRef = useRef<TextInput>(null);
 
   async function buscarPedido() {
@@ -29,11 +30,11 @@ export default function PedidoManualPage() {
       return;
     }
 
+    setPendencia(null);
+
     try {
       setLoading(true);
 
-      // GET /api/recebimentos/pedido?numero=XXX
-      // O interceptor de api.ts injeta o Bearer token do Supabase automaticamente
       const response = await api.get(`/api/recebimentos/pedido?numero=${encodeURIComponent(numeroTrim)}`);
       const data = response.data;
 
@@ -49,11 +50,11 @@ export default function PedidoManualPage() {
         return;
       }
 
-      // Navega para a tela de recebimento com o ID interno do pedido
       router.push(`/recebimento/${pedidoId}`);
     } catch (error: any) {
       const status = error?.response?.status;
-      const msg = error?.response?.data?.error || error?.message || "Erro ao buscar pedido.";
+      const data = error?.response?.data;
+      const msg = data?.error || error?.message || "Erro ao buscar pedido.";
 
       if (status === 401) {
         Alert.alert(
@@ -65,6 +66,12 @@ export default function PedidoManualPage() {
         Alert.alert("Sem permissão", "Você não tem permissão para visualizar recebimentos.");
       } else if (status === 404) {
         Alert.alert("Não encontrado", `Pedido número "${numeroTrim}" não encontrado nesta empresa.`);
+      } else if (status === 422 && data?.recebimento_pendente_id) {
+        // Há pendências aguardando definição — mostra na tela em vez de Alert
+        setPendencia({
+          id: data.recebimento_pendente_id,
+          numero: data.recebimento_pendente_numero || "pendente",
+        });
       } else {
         Alert.alert("Erro", msg);
       }
@@ -100,7 +107,10 @@ export default function PedidoManualPage() {
               placeholder="Ex: 1042"
               placeholderTextColor="#475569"
               value={numero}
-              onChangeText={setNumero}
+              onChangeText={(t) => {
+                setNumero(t);
+                setPendencia(null);
+              }}
               keyboardType="numeric"
               returnKeyType="search"
               onSubmitEditing={buscarPedido}
@@ -110,6 +120,24 @@ export default function PedidoManualPage() {
               O número aparece no cabeçalho do PDF do pedido.
             </Text>
           </View>
+
+          {/* Card de pendência */}
+          {pendencia && (
+            <View style={styles.pendCard}>
+              <Text style={styles.pendIcon}>⚠️</Text>
+              <Text style={styles.pendTitle}>Pendências aguardando definição</Text>
+              <Text style={styles.pendMsg}>
+                O recebimento {pendencia.numero} possui itens faltantes sem ação definida.
+                Defina a ação antes de iniciar um novo recebimento.
+              </Text>
+              <TouchableOpacity
+                style={styles.pendBtn}
+                onPress={() => router.push(`/recebimento/${pendencia.id}`)}
+              >
+                <Text style={styles.pendBtnText}>Ver recebimento pendente →</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
@@ -201,6 +229,44 @@ const styles = StyleSheet.create({
     color: "#334155",
     fontSize: 12,
     textAlign: "center",
+  },
+  pendCard: {
+    backgroundColor: "#1c1a10",
+    borderWidth: 1,
+    borderColor: "#854d0e",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    alignItems: "center",
+    gap: 8,
+  },
+  pendIcon: {
+    fontSize: 32,
+    marginBottom: 4,
+  },
+  pendTitle: {
+    color: "#fcd34d",
+    fontSize: 16,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  pendMsg: {
+    color: "#94a3b8",
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  pendBtn: {
+    marginTop: 8,
+    backgroundColor: "#1d4ed8",
+    paddingVertical: 13,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  pendBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 15,
   },
   button: {
     backgroundColor: "#1d4ed8",
