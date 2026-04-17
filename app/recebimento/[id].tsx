@@ -265,6 +265,7 @@ export default function RecebimentoDetalhePage() {
   const nfSerieRef = useRef<TextInput>(null);
   const [iniciando, setIniciando] = useState(false);
   const [erroCarregamento, setErroCarregamento] = useState<string | null>(null);
+  const [erroPendencia, setErroPendencia] = useState<{ id: string; numero: string } | null>(null);
 
   function initQtds(r: Recebimento) {
     const map: Record<string, string> = {};
@@ -327,8 +328,14 @@ export default function RecebimentoDetalhePage() {
         Alert.alert("Atenção", data.aviso);
       }
     } catch (error: any) {
-      const msg = handleApiError(error, "carregar recebimento");
-      setErroCarregamento(msg);
+      const status = error?.response?.status;
+      const errData = error?.response?.data;
+      if (status === 422 && errData?.recebimento_pendente_id) {
+        setErroPendencia({ id: errData.recebimento_pendente_id, numero: errData.recebimento_pendente_numero || "pendente" });
+      } else {
+        const msg = handleApiError(error, "carregar recebimento");
+        setErroCarregamento(msg);
+      }
     } finally {
       setIniciando(false);
     }
@@ -498,6 +505,30 @@ export default function RecebimentoDetalhePage() {
         <Text style={styles.loadingText}>
           {iniciando ? "Iniciando recebimento..." : "Carregando..."}
         </Text>
+      </View>
+    );
+  }
+
+  if (erroPendencia) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorIcon}>⚠️</Text>
+        <Text style={[styles.errorText, { color: "#fcd34d", fontSize: 16, fontWeight: "700" }]}>
+          Pendências aguardando definição
+        </Text>
+        <Text style={[styles.errorText, { color: "#94a3b8", marginTop: 8, textAlign: "center" }]}>
+          O recebimento {erroPendencia.numero} possui itens faltantes sem ação definida.
+          Defina a ação antes de iniciar um novo recebimento.
+        </Text>
+        <TouchableOpacity
+          style={styles.retryBtn}
+          onPress={() => router.replace(`/recebimento/${erroPendencia.id}`)}
+        >
+          <Text style={styles.retryBtnText}>Ver recebimento pendente →</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.backBtnCenter} onPress={() => router.back()}>
+          <Text style={styles.backBtnCenterText}>Voltar</Text>
+        </TouchableOpacity>
       </View>
     );
   }
